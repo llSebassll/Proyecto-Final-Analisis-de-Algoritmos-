@@ -9,6 +9,7 @@ import osmnx as ox
 import pandas as pd
 from pyproj import Transformer
 from scipy.spatial import ConvexHull
+import itertools
 
 ox.settings.log_console = True
 G = ox.graph_from_place("Quindío, Colombia", network_type="drive")
@@ -219,7 +220,7 @@ print(f"Celdas de la matriz realmente usadas: {pares_unicos / celdas:.6%}")
 # pico (3 -> 17 MB) también crece en proporción al tamaño, como O(V + E).
 # Casi todo el tiempo de la función se va en COPIAR el subgrafo (el algoritmo
 # de Tarjan solo tarda ~1/14 del total).
-PLAZA_BOLIVAR_ARMENIA = (4.5325725, -75.6730412)  # (lat, lon), según Nominatim
+PLAZA_BOLIVAR_ARMENIA = (4.5325725, -75.6730412)  
 REPETICIONES = 5
 
 
@@ -404,33 +405,6 @@ print("Guardado en procesado/quindio_scc.graphml y procesado/lugares_nodos.csv")
 
 
 
-
-# =============================================================================
-# DIJKSTRA
-# =============================================================================
-
-
-# pred = predecesor
-def reconstruir_ruta(pred, origen, destino):
-    "Reconstruye el camino saltando hacia atrás usando el diccionario de predecesores."
-    ruta = []
-    actual = destino
-    
-    while actual is not None:
-        ruta.append(actual)
-        if actual == origen:
-            break
-        actual = pred.get(actual)
-
-    # Si la ruta está vacía o el último nodo no es el origen, es inalcanzable
-    if not ruta or ruta[-1] != origen:
-        return []
-
-    # Invertir la ruta para que esta vaya de origen a destino
-    ruta.reverse() 
-    return ruta
-
-
 # =============================================================================
 # 1. ESTRUCTURA DE APOYO
 # =============================================================================
@@ -484,18 +458,23 @@ class ColaPrioridad:
 # =============================================================================
 # 2. ALGORITMO DIJKSTRA
 # =============================================================================
+# pred = predecesor
 def reconstruir_ruta(pred, origen, destino):
-    """Reconstruye el camino saltando hacia atrás."""
+    "Reconstruye el camino saltando hacia atrás usando el diccionario de predecesores."
     ruta = []
     actual = destino
+    
     while actual is not None:
         ruta.append(actual)
         if actual == origen:
             break
         actual = pred.get(actual)
-        
+
+    # Si la ruta está vacía o el último nodo no es el origen, es inalcanzable
     if not ruta or ruta[-1] != origen:
         return []
+
+    # Invertir la ruta para que esta vaya de origen a destino
     ruta.reverse() 
     return ruta
 
@@ -584,9 +563,6 @@ def dijkstraLineal(grafo, origen, destino):
 
 
 
-import pandas as pd
-import itertools
-import time
 
 def cargarMatriz(rutaArchivo):
     df = pd.read_csv(rutaArchivo, index_col=0)
@@ -1113,7 +1089,7 @@ def envolventeConvexa(puntos):
     #Separar los puntos que estan arriba y abajo
     puntosArriba = [p for p in puntos if determinanteVectorial(puntoMinX, puntosMaxX,p) > 0]
     puntosAbajo = [p for p in puntos if determinanteVectorial(puntosMaxX, puntoMinX, p) > 0]
-
+ 
     #Llamadas recursivas
     hullArriba = quickHullRecursivo(puntosArriba, puntoMinX, puntosMaxX)
     hullAbajo = quickHullRecursivo(puntosAbajo, puntosMaxX, puntoMinX)
@@ -1167,7 +1143,6 @@ ejecutarRequerimiento3()
 
 
 if __name__ == "__main__":
-    # Mete aquí adentro las llamadas a tus pruebas:
     generarMatrizTiempos()
     ejecutarItinerario()
     probarAlgoritmosTSP()
