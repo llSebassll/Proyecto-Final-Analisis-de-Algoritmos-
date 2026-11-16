@@ -1,0 +1,41 @@
+id,nombre,lat,lon,municipio,categoria,duracionVisita
+1,Armenia,4.5325725,-75.6730412,Armenia,Cabecera,30
+2,Buenavista,4.359136,-75.738021,Buenavista,Cabecera,30
+3,Calarcá,4.530461,-75.640231,Calarcá,Cabecera,30
+4,Circasia,4.619923,-75.634499,Circasia,Cabecera,30
+5,Córdoba,4.389855,-75.685396,Córdoba,Cabecera,30
+6,Filandia,4.674737,-75.658371,Filandia,Cabecera,30
+7,Génova,4.205995,-75.790941,Génova,Cabecera,30
+8,La Tebaida,4.453271,-75.789930,La Tebaida,Cabecera,30
+9,Montenegro,4.567342,-75.750574,Montenegro,Cabecera,30
+10,Pijao,4.333616,-75.704014,Pijao,Cabecera,30
+11,Quimbaya,4.622908,-75.763049,Quimbaya,Cabecera,30
+12,Salento,4.636949,-75.570287,Salento,Cabecera,30
+13,Parque Nacional del Café,4.539828,-75.772583,Montenegro,Atractivo,200
+14,PANACA,4.607203,-75.820652,Quimbaya,Atractivo,200
+15,Valle de Cocora,4.636056,-75.489753,Salento,Atractivo,120
+16,Jardín Botánico del Quindío,4.512613,-75.666996,Calarcá,Atractivo,120
+17,Museo del Oro Quimbaya,4.570989,-75.648808,Armenia,Atractivo,90  
+18,Parque de la Vida,4.547453,-75.660025,Armenia,Atractivo,90
+19,Recuca,4.432250,-75.733684,Calarcá,Atractivo,120
+20,Parque Los ARRIEROS,4.578949,-75.782640,Montenegro,Atractivo,120
+21,Villa Maria,4.572120,-75.712133,Cirasia,Atractivo,60
+22,Mirador Alto de la Cruz,4.639619,-75.566760,Salento,Atractivo,60
+23,Parroquia Nuestra Señora del Carmen,4.637228,-75.569418,Salento,Atractivo,60
+24,Complejo Turístico y Deportivo Soledén,4.479707,-75.750293,Armenia,Atractivo,180
+25,Fonda La Floresta,4.580738,-75.637082,Armenia,Atractivo,180
+26,Centro Comercial Unicentro,4.540503,-75.666267,Armenia,Atractivo,90
+27,Restaurante La Fogata,4.553672, -75.657794,Armenia,Atractivo,
+28,Las bailarinas hotel campestre,4.550674,-75.729803,Montenegro,Hotel,600
+29,Hotel Campestre La Cecilia,4.547626,-75.732925,Montenegro,Hotel,600
+30,Hotel Natura Cocora,4.636796,-75.561248,Salento,Hotel,600
+31,Hotel Campestre las Camelias,4.522415,-75.786234,Montenegro,Hotel,600
+32,Finca San Francisco,4.463545,-75.736715,Armenia,Finca,600
+33,Hotel Mocawa Resort,4.446169,-75.813732,La Tebaida,Hotel,600
+34,Eco Hotel Santa Bárbara,4.590234,-75.711250,Circasia,Hotel,600
+35,Mirador Colina Iluminada,4.668871,-75.666009,Filandia,Finca,600
+36,Trilladora Europa,4.516016,-75.692142,Armenia,Trilladora,60
+37,Trilladora Quindio,4.519436,-75.690562,Armenia,Trilladora,60
+38,Trilladora Goncheverry,4.533429,-75.681443,Armenia,Trilladora,60
+39,Trilladora los Andes,4.515813,-75.694752,Armenia,Trilladora,60
+40,Trilladora espinosa,4.518041, -75.690463,Armenia,Trilladora,60
