@@ -2,7 +2,7 @@ import os
 import statistics
 import time
 import tracemalloc
-
+import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import osmnx as ox
@@ -10,6 +10,9 @@ import pandas as pd
 from pyproj import Transformer
 from scipy.spatial import ConvexHull
 import itertools
+import sys
+import random
+random.seed(42)
 
 ox.settings.log_console = True
 G = ox.graph_from_place("Quindío, Colombia", network_type="drive")
@@ -404,10 +407,10 @@ print("Guardado en procesado/quindio_scc.graphml y procesado/lugares_nodos.csv")
 
 
 
+# =============================================================================
+# REQUERIMIENTO 2: BÚSQUEDA DE RUTAS ÓPTIMAS (DIJKSTRA)
+# =============================================================================
 
-# =============================================================================
-# 1. ESTRUCTURA DE APOYO
-# =============================================================================
 class ColaPrioridad:
     def __init__(self):
         self.heap = []
@@ -454,10 +457,6 @@ class ColaPrioridad:
     def is_empty(self):
         return len(self.heap) == 0
 
-
-# =============================================================================
-# 2. ALGORITMO DIJKSTRA
-# =============================================================================
 # pred = predecesor
 def reconstruir_ruta(pred, origen, destino):
     "Reconstruye el camino saltando hacia atrás usando el diccionario de predecesores."
@@ -563,6 +562,402 @@ def dijkstraLineal(grafo, origen, destino):
 
 
 
+""" def ejecutarExperimentoR2():
+    print("\n EXPERIMENTO REQUERIMIENTO 2: DIJSKTRA ====")
+    print("Cargando grafo y catálogo...")
+    grafo = ox.load_graphml("procesado/quindio_scc.graphml")
+    lugares = pd.read_csv("procesado/lugares_nodos.csv")
+
+    #1. Separar 10 pares cercanos()
+    paresCercanos = []
+    for _, grupo in lugares.groupby('municipio'):
+        nodosMunicipio =  grupo['nodo'].tolist()
+        if len(nodosMunicipio) >=2:
+            for i in range(1, len(nodosMunicipio)):
+                paresCercanos.append((nodosMunicipio[0], nodosMunicipio[i]))
+                if len(paresCercanos) == 10:break
+        if len(paresCercanos)== 10:break
+
+    #Completar hasta tener 20 pares en total mezclando al azar
+    nodosTotal = lugares['nodo'].tolist()
+    paresTotal = paresCercanos.copy()
+    for i in range(len(nodosTotal)-1):
+        if len(paresTotal) >=20:break
+        par = (nodosTotal[i], nodosTotal[-i-1])
+        if par not in paresTotal:
+            paresTotal.append(par)
+
+    resultadosCp = []
+    resultadosLin = []
+    cocientes = []
+
+    print("Iniciando mediciones...")
+    for idx, (origen, destino) in enumerate(paresTotal):
+        #medi cola de prioridad
+        inicio = time.perf_counter()
+        _, _, expCp = dijkstraGrafoReal(grafo, origen, destino)
+        tiempoCp = (time.perf_counter() - inicio) * 1000
+        resultadosCp.append((expCp, tiempoCp))
+
+        #medir lineal 
+        if idx < 10:
+            inicio = time.perf_counter()
+            _, _, expLin = dijkstraLineal(grafo, origen, destino)
+            tiempoLin = (time.perf_counter() - inicio) * 1000
+            resultadosLin.append((expLin, tiempoLin))
+
+            cociente = tiempoLin / tiempoCp if tiempoCp > 0 else 0
+            cocientes.append(cociente)
+            print(f"Par {idx+1} (Cercano) | Nodos exp: {expCp} | CP: {tiempoCp:.1f}ms | Lin: {tiempoLin:.1f}ms | Cociente: {cociente:.1f}x")
+        else:
+            print(f"Par {idx+1} (Lejano)  | Nodos exp: {expCp} | CP: {tiempoCp:.1f}ms")
+
+    print("\n--- ESTADÍSTICAS DEL COCIENTE (Lineal / Cola Prioridad) ---")
+    print(f"Mínimo:  {min(cocientes):.2f}x")
+    print(f"Máximo:  {max(cocientes):.2f}x")
+    print(f"Mediana: {statistics.median(cocientes):.2f}x")
+
+    # 2. Generar Gráfica
+    xCp, yCp = zip(*resultadosCp)
+    xLin, yLin = zip(*resultadosLin)
+
+    plt.figure(figsize=(10, 6))
+    plt.scatter(xCp, yCp, color='blue', label='O((V+E) log V) - Cola Prioridad', alpha=0.7)
+    plt.scatter(xLin, yLin, color='red', label='O(V^2) - Búsqueda Lineal', alpha=0.7)
+    
+    plt.title("Rendimiento Dijkstra: Tiempo vs Nodos Explorados")
+    plt.xlabel("Nodos Explorados")
+    plt.ylabel("Tiempo de Ejecución (ms)")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    
+    plt.savefig("procesado/grafica_dijkstra.png", dpi=300)
+    print("✅ Gráfica guardada en 'procesado/grafica_dijkstra.png'") """
+
+def ejecutarExperimentoR2():
+    print("\n" + "="*50)
+    print("=== REQUERIMIENTO 2: COMPARATIVA DE DIJKSTRA ===")
+    print("="*50)
+    
+    grafo = ox.load_graphml("procesado/quindio_scc.graphml")
+    lugares = pd.read_csv("procesado/lugares_nodos.csv")
+
+    paresCercanos = []
+    for _, grupo in lugares.groupby('municipio'):
+        nodosMunicipio =  grupo['nodo'].tolist()
+        if len(nodosMunicipio) >=2:
+            for i in range(1, len(nodosMunicipio)):
+                paresCercanos.append((nodosMunicipio[0], nodosMunicipio[i]))
+                if len(paresCercanos) == 10:break
+        if len(paresCercanos)== 10:break
+
+    nodosTotal = lugares['nodo'].tolist()
+    paresTotal = paresCercanos.copy()
+    for i in range(len(nodosTotal)-1):
+        if len(paresTotal) >=20:break
+        par = (nodosTotal[i], nodosTotal[-i-1])
+        if par not in paresTotal: paresTotal.append(par)
+
+    resultadosCp, resultadosLin, cocientes = [], [], []
+    
+    # NUEVO: Lista para guardar las filas de la tabla solicitada por la rúbrica
+    filasCsv = []
+
+    for idx, (origen, destino) in enumerate(paresTotal):
+        # 1. Medir Cola de Prioridad
+        inicio = time.perf_counter()
+        tiempo_viaje_cp, _, expCp = dijkstraGrafoReal(grafo, origen, destino)
+        tiempoCp = (time.perf_counter() - inicio) * 1000
+        resultadosCp.append((expCp, tiempoCp))
+        
+        filasCsv.append({
+            "origen": origen,
+            "destino": destino,
+            "version": "cola_prioridad",
+            "tiempo_viaje_s": round(tiempo_viaje_cp, 2),
+            "nodos_explorados": expCp,
+            "tiempo_ms": round(tiempoCp, 2)
+        })
+
+        # 2. Medir Búsqueda Lineal
+        if idx < 10:
+            inicio = time.perf_counter()
+            tiempo_viaje_lin, _, expLin = dijkstraLineal(grafo, origen, destino)
+            tiempoLin = (time.perf_counter() - inicio) * 1000
+            resultadosLin.append((expLin, tiempoLin))
+            cocientes.append(tiempoLin / tiempoCp if tiempoCp > 0 else 0)
+            
+            filasCsv.append({
+                "origen": origen,
+                "destino": destino,
+                "version": "lineal",
+                "tiempo_viaje_s": round(tiempo_viaje_lin, 2),
+                "nodos_explorados": expLin,
+                "tiempo_ms": round(tiempoLin, 2)
+            })
+
+    # NUEVO: Generar el archivo CSV exactamente como pide el anexo
+    dfMediciones = pd.DataFrame(filasCsv)
+    dfMediciones.to_csv("procesado/mediciones_dijkstra.csv", index=False)
+    print("✅ Archivo de tabla guardado en: procesado/mediciones_dijkstra.csv")
+
+    # Generar Gráfica
+    xCp, yCp = zip(*resultadosCp)
+    xLin, yLin = zip(*resultadosLin)
+
+    plt.figure(figsize=(10, 6))
+    plt.scatter(xCp, yCp, color='blue', label='O((V+E) log V) - Cola Prioridad', alpha=0.7)
+    plt.scatter(xLin, yLin, color='red', label='O(V^2) - Búsqueda Lineal', alpha=0.7)
+    plt.title("Rendimiento Dijkstra: Tiempo vs Nodos Explorados")
+    plt.xlabel("Nodos Explorados")
+    plt.ylabel("Tiempo de Ejecución (ms)")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.savefig("procesado/grafica_dijkstra.png", dpi=300)
+    print("✅ Gráfica generada: procesado/grafica_dijkstra.png")
+
+ejecutarExperimentoR2()
+
+# =============================================================================
+# REQUERIMIENTO 3: ENVOLVENTE CONVEXA (DIVIDE Y VENCERÁS)
+# =============================================================================
+
+def determinanteVectorial(p1, p2, p3):
+
+    "Calcula el producto cruzado (determinante) de los vectores p1->p2 y p1->p3."
+    "Retorna > 0 si p3 está a la 'izquierda' de la línea dirigida de p1 a p2."
+    
+    return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0])
+
+def quickHullRecursivo(puntos, p1, p2):
+    if not puntos:
+        return []
+
+    #encontrar el punto mas alejado de la linea formada por p1 y p2
+    puntoLejano = max(puntos, key= lambda p: abs(determinanteVectorial(p1, p2, p)))
+
+    #Dividir los puntos restantes en dos nuevos subconjuntos
+    puntosIzquierda1 = [p for p in puntos if determinanteVectorial(p1, puntoLejano, p) > 0]
+    puntosIzquierda2 = [p for p in puntos if determinanteVectorial(puntoLejano, p2, p) > 0]
+
+    # Recursividad
+    bordeIzquierdo = quickHullRecursivo(puntosIzquierda1, p1, puntoLejano)
+    bordeDerecho = quickHullRecursivo(puntosIzquierda2, puntoLejano, p2)
+
+    #convinar resultados
+    return bordeIzquierdo + [puntoLejano] + bordeDerecho
+
+def envolventeConvexa(puntos):
+    if len(puntos) <+ 2:
+        return puntos
+
+    #Encontrar los extremos en el eje x
+    puntoMinX = min(puntos, key=lambda p: p[0]) 
+    puntosMaxX = max(puntos, key=lambda p: p[0]) 
+
+    #Separar los puntos que estan arriba y abajo
+    puntosArriba = [p for p in puntos if determinanteVectorial(puntoMinX, puntosMaxX,p) > 0]
+    puntosAbajo = [p for p in puntos if determinanteVectorial(puntosMaxX, puntoMinX, p) > 0]
+ 
+    #Llamadas recursivas
+    hullArriba = quickHullRecursivo(puntosArriba, puntoMinX, puntosMaxX)
+    hullAbajo = quickHullRecursivo(puntosAbajo, puntosMaxX, puntoMinX)
+
+    return [puntoMinX] + hullArriba + [puntosMaxX] + hullAbajo
+
+
+""" def ejecutarRequerimiento3():
+    print("\n" + "="*50)
+    print("=== REQUERIMIENTO 3: ENVOLVENTE CONVEXA (QUICKHULL) ===")
+    print("="*50)
+    
+    # Cargar coordenadas (longitud como X, latitud como Y)
+    dfLugares = pd.read_csv("procesado/lugares_nodos.csv")
+    puntosLista = list(zip(dfLugares['lon'], dfLugares['lat']))
+    # Eliminamos duplicados por si hay lugares con la misma coordenada exacta
+    puntosUnicos = list(set(puntosLista)) 
+    
+    print(f"Calculando envolvente convexa para {len(puntosUnicos)} lugares...\n")
+    
+    # Divide y Vencerás
+    inicioPropio = time.perf_counter()
+    hullPropio = envolventeConvexa(puntosUnicos)
+    tiempoPropio = (time.perf_counter() - inicioPropio) * 1000
+    
+    # Algoritmo de SciPy 
+    inicioScipy = time.perf_counter()
+    puntosArray = np.array(puntosUnicos)
+    # SciPy devuelve los índices de los vértices que forman el borde
+    indicesScipy = ConvexHull(puntosArray).vertices
+    hullScipy = [tuple(puntosArray[i]) for i in indicesScipy]
+    tiempoScipy = (time.perf_counter() - inicioScipy) * 1000
+    
+    # --- 3. Resultados y Comparación ---
+    print("--- RESULTADOS ---")
+    print(f"Algoritmo Propio (O(n log n)): {tiempoPropio:.3f} ms | Vértices: {len(hullPropio)}")
+    print(f"Librería SciPy (Qhull):        {tiempoScipy:.3f} ms | Vértices: {len(hullScipy)}")
+    
+    # Verificación estricta usando conjuntos (ignorando el orden en que se listan)
+    setPropio = set(hullPropio)
+    setScipy = set(hullScipy)
+    
+    if setPropio == setScipy:
+        print("\n✅ VERIFICACIÓN EXITOSA: Tu algoritmo 'Divide y Vencerás' ha encontrado")
+        print("exactamente el mismo polígono convexo que la librería SciPy.")
+    else:
+        print("\n❌ Diferencia detectada entre los algoritmos.")
+ """
+
+
+def ejecutarRequerimiento3():
+    print("\n" + "="*50)
+    print("=== REQUERIMIENTO 3: ENVOLVENTE CONVEXA (QUICKHULL) ===")
+    print("="*50)
+    
+    # Aumentar límite de recursión por seguridad para los 50,000 puntos
+    sys.setrecursionlimit(5000)
+    
+    # 1. Obtener "Nodos de la red" (cargamos el grafo)
+    grafo = ox.load_graphml("procesado/quindio_scc.graphml")
+    # Extraemos (longitud, latitud) de cada nodo
+    nodos_red = list(set([(data['x'], data['y']) for nodo, data in grafo.nodes(data=True)]))
+    
+    # 2. Definir los escenarios de prueba exigidos por la rúbrica
+    escenarios = [
+        ("Nodos de la red", nodos_red),
+        ("Cuadrado, 1 000 puntos", [(random.uniform(0, 100), random.uniform(0, 100)) for _ in range(1000)]),
+        ("Cuadrado, 10 000 puntos", [(random.uniform(0, 100), random.uniform(0, 100)) for _ in range(10000)]),
+        ("Cuadrado, 50 000 puntos", [(random.uniform(0, 100), random.uniform(0, 100)) for _ in range(50000)])
+    ]
+    
+    filas_csv = []
+    
+    print(f"{'Conjunto de puntos':<25} | {'n':<7} | {'Vértices':<8} | {'T. Propio (ms)':<15} | {'T. SciPy (ms)':<15} | {'Cociente'}")
+    print("-" * 95)
+    
+    for nombre, puntos in escenarios:
+        n = len(puntos)
+        
+        # Medir Algoritmo Propio (Divide y Vencerás)
+        inicioPropio = time.perf_counter()
+        hullPropio = envolventeConvexa(puntos)
+        tiempoPropio = (time.perf_counter() - inicioPropio) * 1000
+        
+        # Medir Librería SciPy
+        inicioScipy = time.perf_counter()
+        puntosArray = np.array(puntos)
+        hullScipy = ConvexHull(puntosArray)
+        tiempoScipy = (time.perf_counter() - inicioScipy) * 1000
+        
+        # Cálculos de la tabla
+        vertices = len(hullPropio)
+        cociente = tiempoPropio / tiempoScipy if tiempoScipy > 0 else 0
+        
+        # Imprimir fila en consola
+        print(f"{nombre:<25} | {n:<7} | {vertices:<8} | {tiempoPropio:<15.2f} | {tiempoScipy:<15.2f} | {cociente:.2f}x")
+        
+        # Guardar para el CSV
+        filas_csv.append({
+            "Conjunto de puntos": nombre,
+            "n": n,
+            "Vértices de la envolvente": vertices,
+            "Tiempo propio (ms)": round(tiempoPropio, 2),
+            "Tiempo SciPy (ms)": round(tiempoScipy, 2),
+            "Cociente": round(cociente, 2)
+        })
+        
+    # Exportar resultados a CSV
+    df_resultados = pd.DataFrame(filas_csv)
+    df_resultados.to_csv("procesado/mediciones_quickhull.csv", index=False)
+    print("\n✅ Tabla de resultados exportada a 'procesado/mediciones_quickhull.csv'")
+
+
+ejecutarRequerimiento3()
+
+
+
+# =============================================================================
+# REQUERIMIENTO 4: PROBLEMA DEL VIAJANTE (TSP) E ITINERARIOS
+# =============================================================================
+
+def dijkstraTodasLasDistancias(grafo, origen):
+    """Versión que calcula la distancia a TODOS los nodos sin detenerse, usando la clase ColaPrioridad propia."""
+    dist = {nodo: float("inf") for nodo in grafo.nodes}
+    
+    # Asegurarnos de que el origen exista y sea del tipo correcto (str o int)
+    origen = str(origen) if str(origen) in dist else int(origen)
+    
+    dist[origen] = 0
+    
+    # Instanciamos nuestra propia estructura en lugar de la lista de heapq
+    cola = ColaPrioridad()  
+    cola.push((0, origen))  
+
+    while not cola.is_empty():
+        # Extraemos el de menor distancia usando nuestro método pop()
+        distanciaActual, nodoActual = cola.pop()
+
+        # Invariante: descartamos registros desactualizados
+        if distanciaActual > dist[nodoActual]:
+            continue
+
+        # NO hay condicional de parada porque necesitamos el grafo completo
+
+        # Iteramos sobre los vecinos en el MultiDiGraph
+        for vecino, aristas in grafo[nodoActual].items():
+            peso = float(aristas[0].get('travel_time', 0))
+            nuevaDist = distanciaActual + peso
+            
+            if nuevaDist < dist[vecino]:
+                dist[vecino] = nuevaDist
+                # Insertamos a nuestra cola personalizada
+                cola.push((nuevaDist, vecino))
+                
+    return dist
+
+def generarMatrizTiempos():
+    print("Cargando el grafo real y el catálogo de lugares para la Matriz...")
+    try:
+        grafoReal = ox.load_graphml("procesado/quindio_scc.graphml")
+        lugares = pd.read_csv("procesado/lugares_nodos.csv")
+    except FileNotFoundError:
+        print("❌ Error: No se encontraron los archivos base en 'procesado/'.")
+        return
+    
+    nombresLugares = lugares["nombre"].tolist()
+    matrizDatos = []
+    
+    print(f"Calculando matriz de tiempos asimétrica {len(nombresLugares)}x{len(nombresLugares)}...")
+    inicioTiempo = time.perf_counter()
+    
+    for i, origenRow in lugares.iterrows():
+        nodoOrigen = origenRow["nodo"]
+        nombreOrigen = origenRow["nombre"]
+        
+        # OJO: Asegúrate de tener la función dijkstra_todas_las_distancias
+        # (o dijkstraTodasLasDistancias) definida en tu código para que esto funcione
+        distanciasDesdeOrigen = dijkstraTodasLasDistancias(grafoReal, nodoOrigen)
+        
+        fila = {"Origen": nombreOrigen}
+        
+        for j, destinoRow in lugares.iterrows():
+            nodoDestino = destinoRow["nodo"]
+            nombreDestino = destinoRow["nombre"]
+            
+            tiempoSegundos = distanciasDesdeOrigen.get(nodoDestino, float('inf'))
+            fila[nombreDestino] = tiempoSegundos
+            
+        matrizDatos.append(fila)
+        print(f"[{i+1}/{len(lugares)}] Procesado origen: {nombreOrigen}")
+        
+    dfMatriz = pd.DataFrame(matrizDatos)
+    rutaSalida = "procesado/matriz_tiempos.csv"
+    dfMatriz.to_csv(rutaSalida, index=False)
+    
+    finTiempo = time.perf_counter()
+    print(f"\n✅ Matriz guardada exitosamente en: {rutaSalida}")
+    print(f"⏱️ Tiempo total de generación: {(finTiempo - inicioTiempo):.2f} segundos")
+generarMatrizTiempos()
 
 def cargarMatriz(rutaArchivo):
     df = pd.read_csv(rutaArchivo, index_col=0)
@@ -674,86 +1069,6 @@ def heldKarp(matriz, nodosVisitar, nodoInicio):
     return tiempoOptimo, rutaCompleta
 
 
-def dijkstraTodasLasDistancias(grafo, origen):
-    """Versión que calcula la distancia a TODOS los nodos sin detenerse, usando la clase ColaPrioridad propia."""
-    dist = {nodo: float("inf") for nodo in grafo.nodes}
-    
-    # Asegurarnos de que el origen exista y sea del tipo correcto (str o int)
-    origen = str(origen) if str(origen) in dist else int(origen)
-    
-    dist[origen] = 0
-    
-    # Instanciamos nuestra propia estructura en lugar de la lista de heapq
-    cola = ColaPrioridad()  
-    cola.push((0, origen))  
-
-    while not cola.is_empty():
-        # Extraemos el de menor distancia usando nuestro método pop()
-        distanciaActual, nodoActual = cola.pop()
-
-        # Invariante: descartamos registros desactualizados
-        if distanciaActual > dist[nodoActual]:
-            continue
-
-        # NO hay condicional de parada porque necesitamos el grafo completo
-
-        # Iteramos sobre los vecinos en el MultiDiGraph
-        for vecino, aristas in grafo[nodoActual].items():
-            peso = float(aristas[0].get('travel_time', 0))
-            nuevaDist = distanciaActual + peso
-            
-            if nuevaDist < dist[vecino]:
-                dist[vecino] = nuevaDist
-                # Insertamos a nuestra cola personalizada
-                cola.push((nuevaDist, vecino))
-                
-    return dist
-
-def generarMatrizTiempos():
-    print("Cargando el grafo real y el catálogo de lugares para la Matriz...")
-    try:
-        grafoReal = ox.load_graphml("procesado/quindio_scc.graphml")
-        lugares = pd.read_csv("procesado/lugares_nodos.csv")
-    except FileNotFoundError:
-        print("❌ Error: No se encontraron los archivos base en 'procesado/'.")
-        return
-    
-    nombresLugares = lugares["nombre"].tolist()
-    matrizDatos = []
-    
-    print(f"Calculando matriz de tiempos asimétrica {len(nombresLugares)}x{len(nombresLugares)}...")
-    inicioTiempo = time.perf_counter()
-    
-    for i, origenRow in lugares.iterrows():
-        nodoOrigen = origenRow["nodo"]
-        nombreOrigen = origenRow["nombre"]
-        
-        # OJO: Asegúrate de tener la función dijkstra_todas_las_distancias
-        # (o dijkstraTodasLasDistancias) definida en tu código para que esto funcione
-        distanciasDesdeOrigen = dijkstraTodasLasDistancias(grafoReal, nodoOrigen)
-        
-        fila = {"Origen": nombreOrigen}
-        
-        for j, destinoRow in lugares.iterrows():
-            nodoDestino = destinoRow["nodo"]
-            nombreDestino = destinoRow["nombre"]
-            
-            tiempoSegundos = distanciasDesdeOrigen.get(nodoDestino, float('inf'))
-            fila[nombreDestino] = tiempoSegundos
-            
-        matrizDatos.append(fila)
-        print(f"[{i+1}/{len(lugares)}] Procesado origen: {nombreOrigen}")
-        
-    dfMatriz = pd.DataFrame(matrizDatos)
-    rutaSalida = "procesado/matriz_tiempos.csv"
-    dfMatriz.to_csv(rutaSalida, index=False)
-    
-    finTiempo = time.perf_counter()
-    print(f"\n✅ Matriz guardada exitosamente en: {rutaSalida}")
-    print(f"⏱️ Tiempo total de generación: {(finTiempo - inicioTiempo):.2f} segundos")
-generarMatrizTiempos()
-
-
 # Heuristica Voras
 def heuristicaVoraz(matriz, nodosVisitar, nodoInicio):
 
@@ -853,9 +1168,6 @@ def ejecutarItinerario():
     # El requerimiento pide elegir entre 6 y 8 atractivos. Tomaremos 7 de la lista.
     atractivosSeleccionados = dfAtractivos['nombre'].head(7).tolist()
     
-    if len(atractivosSeleccionados) < 6:
-        print(f"⚠️ Advertencia: Solo encontré {len(atractivosSeleccionados)} atractivos en tu catálogo con 'duracion_visita' > 0.")
-        print("Asegúrate de que tu archivo CSV tenga bien llena la columna 'duracion_visita' para los parques y museos.")
         
     print(f"📍 Lugar de partida: {nodoInicio}")
     print(f"🎯 Atractivos iniciales seleccionados ({len(atractivosSeleccionados)}): {atractivosSeleccionados}\n")
@@ -865,9 +1177,7 @@ def ejecutarItinerario():
 
 ejecutarItinerario()
 
-
-
-def probarAlgoritmosTSP():
+""" def probarAlgoritmosTSP():
     matriz, listaLugares = cargarMatriz("procesado/matriz_tiempos.csv")
     
     # Configuramos el experimento (Requerimiento 4.1 y 4.4)
@@ -915,7 +1225,86 @@ def probarAlgoritmosTSP():
     
     # Verificación
     assert abs(tiempoFb - tiempoHk) < 0.1, "Error: Los tiempos óptimos no coinciden"
-    print("✅ Verificación exitosa: Ambos algoritmos exactos encontraron el mismo tiempo óptimo.")
+    print("✅ Verificación exitosa: Ambos algoritmos exactos encontraron el mismo tiempo óptimo.") """
+
+def probarAlgoritmosTSP():
+    print("\n" + "="*50)
+    print("=== REQUERIMIENTO 4: SOLUCIONES EXACTAS (TSP) ===")
+    print("="*50)
+    
+    matriz, listaLugares = cargarMatriz("procesado/matriz_tiempos.csv")
+    lugarInicio = "Armenia"
+    lugares_disponibles = [l for l in listaLugares if l != lugarInicio]
+    
+    filas_csv = []
+    resultados_fb = []
+    resultados_hk = []
+    
+    # Evaluamos k desde 5 hasta 12, tal como pide el anexo
+    ks = list(range(5, 13)) 
+    
+    print(f"{'k':<4} | {'Fuerza Bruta (ms)':<20} | {'Held-Karp (ms)':<20}")
+    print("-" * 50)
+    
+    for k in ks:
+        nodosSeleccionados = lugares_disponibles[:k]
+        
+        # 1. Medir Held-Karp O(k^2 * 2^k)
+        t0 = time.perf_counter()
+        heldKarp(matriz, nodosSeleccionados, lugarInicio)
+        tHk = (time.perf_counter() - t0) * 1000
+        resultados_hk.append(tHk)
+        
+        # 2. Medir Fuerza Bruta O(k!)
+        # Ponemos un límite: si k > 10, lo marcamos como "no completada"
+        # para que tu PC no se congele evaluando 479 millones de rutas (12!)
+        if k <= 10:
+            t0 = time.perf_counter()
+            fuerzaBruta(matriz, nodosSeleccionados, lugarInicio)
+            tFb = (time.perf_counter() - t0) * 1000
+            resultados_fb.append(tFb)
+            
+            str_fb = f"{tFb:.2f}"
+            fb_csv = round(tFb, 2)
+        else:
+            resultados_fb.append(None)
+            str_fb = "No completada"
+            fb_csv = "No completada"
+            
+        print(f"{k:<4} | {str_fb:<20} | {tHk:<20.2f}")
+        
+        # Guardamos la fila para el Excel
+        filas_csv.append({
+            "k": k,
+            "Tiempo fuerza bruta (ms)": fb_csv,
+            "Tiempo Held-Karp (ms)": round(tHk, 2)
+        })
+        
+    # --- Exportar CSV ---
+    df_resultados = pd.DataFrame(filas_csv)
+    df_resultados.to_csv("procesado/mediciones_tsp_exactas.csv", index=False)
+    print("\n✅ Tabla de resultados exportada a 'procesado/mediciones_tsp_exactas.csv'")
+    
+    # --- Generar Gráfica ---
+    plt.figure(figsize=(9, 6))
+    
+    # Filtramos los "None" para graficar solo los puntos válidos de Fuerza Bruta
+    ks_fb = [ks[i] for i in range(len(ks)) if resultados_fb[i] is not None]
+    tiempos_fb_validos = [t for t in resultados_fb if t is not None]
+    
+    plt.plot(ks_fb, tiempos_fb_validos, marker='o', color='red', label='O(k!) - Fuerza Bruta')
+    plt.plot(ks, resultados_hk, marker='s', color='blue', label='O(k² * 2^k) - Held-Karp')
+    
+    # Escala logarítmica recomendada porque el crecimiento es factorial
+    plt.yscale('log')
+    plt.title("TSP: Fuerza Bruta vs Held-Karp")
+    plt.xlabel("Cantidad de Atractivos (k)")
+    plt.ylabel("Tiempo de Ejecución (ms) [Escala Logarítmica]")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    
+    plt.savefig("procesado/grafica_tsp_exactas.png", dpi=300)
+    print("✅ Gráfica generada en 'procesado/grafica_tsp_exactas.png'")
 
 # Ejecutar la prueba
 probarAlgoritmosTSP()
@@ -972,175 +1361,126 @@ def probarDatosReales():
 # Ejecutar la prueba
 probarDatosReales()
 
-import matplotlib.pyplot as plt
-
-def ejecutarExperimentoR2():
-    print("\n EXPERIMENTO REQUERIMIENTO 2: DIJSKTRA ====")
-    print("Cargando grafo y catálogo...")
-    grafo = ox.load_graphml("procesado/quindio_scc.graphml")
-    lugares = pd.read_csv("procesado/lugares_nodos.csv")
-
-    #1. Separar 10 pares cercanos()
-    paresCercanos = []
-    for _, grupo in lugares.groupby('municipio'):
-        nodosMunicipio =  grupo['nodo'].tolist()
-        if len(nodosMunicipio) >=2:
-            for i in range(1, len(nodosMunicipio)):
-                paresCercanos.append((nodosMunicipio[0], nodosMunicipio[i]))
-                if len(paresCercanos) == 10:break
-        if len(paresCercanos)== 10:break
-
-    #Completar hasta tener 20 pares en total mezclando al azar
-    nodosTotal = lugares['nodo'].tolist()
-    paresTotal = paresCercanos.copy()
-    for i in range(len(nodosTotal)-1):
-        if len(paresTotal) >=20:break
-        par = (nodosTotal[i], nodosTotal[-i-1])
-        if par not in paresTotal:
-            paresTotal.append(par)
-
-    resultadosCp = []
-    resultadosLin = []
-    cocientes = []
-
-    print("Iniciando mediciones...")
-    for idx, (origen, destino) in enumerate(paresTotal):
-        #medi cola de prioridad
-        inicio = time.perf_counter()
-        _, _, expCp = dijkstraGrafoReal(grafo, origen, destino)
-        tiempoCp = (time.perf_counter() - inicio) * 1000
-        resultadosCp.append((expCp, tiempoCp))
-
-        #medir lineal 
-        if idx < 10:
-            inicio = time.perf_counter()
-            _, _, expLin = dijkstraLineal(grafo, origen, destino)
-            tiempoLin = (time.perf_counter() - inicio) * 1000
-            resultadosLin.append((expLin, tiempoLin))
-
-            cociente = tiempoLin / tiempoCp if tiempoCp > 0 else 0
-            cocientes.append(cociente)
-            print(f"Par {idx+1} (Cercano) | Nodos exp: {expCp} | CP: {tiempoCp:.1f}ms | Lin: {tiempoLin:.1f}ms | Cociente: {cociente:.1f}x")
-        else:
-            print(f"Par {idx+1} (Lejano)  | Nodos exp: {expCp} | CP: {tiempoCp:.1f}ms")
-
-    print("\n--- ESTADÍSTICAS DEL COCIENTE (Lineal / Cola Prioridad) ---")
-    print(f"Mínimo:  {min(cocientes):.2f}x")
-    print(f"Máximo:  {max(cocientes):.2f}x")
-    print(f"Mediana: {statistics.median(cocientes):.2f}x")
-
-    # 2. Generar Gráfica
-    xCp, yCp = zip(*resultadosCp)
-    xLin, yLin = zip(*resultadosLin)
-
-    plt.figure(figsize=(10, 6))
-    plt.scatter(xCp, yCp, color='blue', label='O((V+E) log V) - Cola Prioridad', alpha=0.7)
-    plt.scatter(xLin, yLin, color='red', label='O(V^2) - Búsqueda Lineal', alpha=0.7)
-    
-    plt.title("Rendimiento Dijkstra: Tiempo vs Nodos Explorados")
-    plt.xlabel("Nodos Explorados")
-    plt.ylabel("Tiempo de Ejecución (ms)")
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.6)
-    
-    plt.savefig("procesado/grafica_dijkstra.png", dpi=300)
-    print("✅ Gráfica guardada en 'procesado/grafica_dijkstra.png'")
-# Llama a esta función al final de tu script
-ejecutarExperimentoR2()
 
 
-# =============================================================================
-# REQUERIMIENTO 3: ENVOLVENTE CONVEXA (DIVIDE Y VENCERÁS)
-# =============================================================================
 
-def determinanteVectorial(p1, p2, p3):
-
-    "Calcula el producto cruzado (determinante) de los vectores p1->p2 y p1->p3."
-    "Retorna > 0 si p3 está a la 'izquierda' de la línea dirigida de p1 a p2."
-    
-    return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0])
-
-def quickHullRecursivo(puntos, p1, p2):
-    if not puntos:
-        return []
-
-    #encontrar el punto mas alejado de la linea formada por p1 y p2
-    puntoLejano = max(puntos, key= lambda p: abs(determinanteVectorial(p1, p2, p)))
-
-    #Dividir los puntos restantes en dos nuevos subconjuntos
-    puntosIzquierda1 = [p for p in puntos if determinanteVectorial(p1, puntoLejano, p) > 0]
-    puntosIzquierda2 = [p for p in puntos if determinanteVectorial(puntoLejano, p2, p) > 0]
-
-    # Recursividad
-    bordeIzquierdo = quickHullRecursivo(puntosIzquierda1, p1, puntoLejano)
-    bordeDerecho = quickHullRecursivo(puntosIzquierda2, puntoLejano, p2)
-
-    #convinar resultados
-    return bordeIzquierdo + [puntoLejano] + bordeDerecho
-
-def envolventeConvexa(puntos):
-    if len(puntos) <+ 2:
-        return puntos
-
-    #Encontrar los extremos en el eje x
-    puntoMinX = min(puntos, key=lambda p: p[0]) 
-    puntosMaxX = max(puntos, key=lambda p: p[0]) 
-
-    #Separar los puntos que estan arriba y abajo
-    puntosArriba = [p for p in puntos if determinanteVectorial(puntoMinX, puntosMaxX,p) > 0]
-    puntosAbajo = [p for p in puntos if determinanteVectorial(puntosMaxX, puntoMinX, p) > 0]
- 
-    #Llamadas recursivas
-    hullArriba = quickHullRecursivo(puntosArriba, puntoMinX, puntosMaxX)
-    hullAbajo = quickHullRecursivo(puntosAbajo, puntosMaxX, puntoMinX)
-
-    return [puntoMinX] + hullArriba + [puntosMaxX] + hullAbajo
-
-
-def ejecutarRequerimiento3():
+def generarTablasExactas():
     print("\n" + "="*50)
-    print("=== REQUERIMIENTO 3: ENVOLVENTE CONVEXA (QUICKHULL) ===")
+    print("=== REQUERIMIENTO 4.2: CALIDAD DE LA HEURÍSTICA ===")
     print("="*50)
     
-    # Cargar coordenadas (longitud como X, latitud como Y)
+    matriz, listaLugares = cargarMatriz("procesado/matriz_tiempos.csv")
+    lugarInicio = "Armenia"
+    lugares_disponibles = [l for l in listaLugares if l != lugarInicio]
+    
+    # 1. Tabla de Calidad de la Heurística Voraz
+    ks_evaluar = [5, 8, 10, 12]
+    num_instancias = 10
+    filas_csv_calidad = []
+    
+    print(f"{'k':<4} | {'Instancias':<10} | {'Brecha Promedio (%)':<20} | {'Brecha Máxima (%)':<20}")
+    print("-" * 65)
+    
+    for k in ks_evaluar:
+        brechas = []
+        for _ in range(num_instancias):
+            # Seleccionar k lugares al azar para probar
+            nodosSel = random.sample(lugares_disponibles, k)
+            
+            # Held-Karp (Óptimo) vs Voraz (Aproximado)
+            tHk, _ = heldKarp(matriz, nodosSel, lugarInicio)
+            tVoraz, _ = heuristicaVoraz(matriz, nodosSel, lugarInicio)
+            
+            # Calcular porcentaje de error (brecha)
+            if tHk > 0:
+                brecha = ((tVoraz - tHk) / tHk) * 100
+            else:
+                brecha = 0
+            brechas.append(brecha)
+            
+        brecha_prom = sum(brechas) / len(brechas)
+        brecha_max = max(brechas)
+        
+        print(f"{k:<4} | {num_instancias:<10} | {brecha_prom:<20.2f} | {brecha_max:<20.2f}")
+        filas_csv_calidad.append({
+            "k": k, "Instancias": num_instancias,
+            "Brecha promedio (%)": round(brecha_prom, 2), "Brecha máxima (%)": round(brecha_max, 2)
+        })
+        
+    pd.DataFrame(filas_csv_calidad).to_csv("procesado/tabla_calidad_heuristica.csv", index=False)
+    
+    print("\n" + "="*50)
+    print("=== REQUERIMIENTO 4.3: ITINERARIO DE UN DÍA (11 HORAS) ===")
+    print("="*50)
+    
+    # 2. Tabla Detallada del Itinerario
     dfLugares = pd.read_csv("procesado/lugares_nodos.csv")
-    puntosLista = list(zip(dfLugares['lon'], dfLugares['lat']))
-    # Eliminamos duplicados por si hay lugares con la misma coordenada exacta
-    puntosUnicos = list(set(puntosLista)) 
+    duraciones = dict(zip(dfLugares['nombre'], dfLugares['duracionVisita']))
     
-    print(f"Calculando envolvente convexa para {len(puntosUnicos)} lugares...\n")
+    # Tomamos 7 atractivos de ejemplo inicial
+    atractivosSeleccionados = dfLugares[dfLugares['categoria'] == 'Atractivo']['nombre'].head(7).tolist()
+    nodosActuales = list(atractivosSeleccionados)
+    limiteTiempo = 11 * 60
+    rutaFinal = []
     
-    # Divide y Vencerás
-    inicioPropio = time.perf_counter()
-    hullPropio = envolventeConvexa(puntosUnicos)
-    tiempoPropio = (time.perf_counter() - inicioPropio) * 1000
+    # Poda heurística
+    while True:
+        tViaje, rutaOptima = heldKarp(matriz, nodosActuales, lugarInicio)
+        tVisitas = sum(duraciones.get(n, 0) for n in nodosActuales)
+        tTotal = tViaje/60 + tVisitas
+        
+        if tTotal <= limiteTiempo:
+            rutaFinal = rutaOptima
+            break
+        else:
+            lejano = max(nodosActuales, key=lambda x: matriz[lugarInicio][x])
+            nodosActuales.remove(lejano)
     
-    # Algoritmo de SciPy 
-    inicioScipy = time.perf_counter()
-    puntosArray = np.array(puntosUnicos)
-    # SciPy devuelve los índices de los vértices que forman el borde
-    indicesScipy = ConvexHull(puntosArray).vertices
-    hullScipy = [tuple(puntosArray[i]) for i in indicesScipy]
-    tiempoScipy = (time.perf_counter() - inicioScipy) * 1000
+    print(f"{'Orden':<6} | {'Lugar':<25} | {'Desplaz. (min)':<15} | {'Visita (min)':<12} | {'Acumulado (h)':<15}")
+    print("-" * 80)
     
-    # --- 3. Resultados y Comparación ---
-    print("--- RESULTADOS ---")
-    print(f"Algoritmo Propio (O(n log n)): {tiempoPropio:.3f} ms | Vértices: {len(hullPropio)}")
-    print(f"Librería SciPy (Qhull):        {tiempoScipy:.3f} ms | Vértices: {len(hullScipy)}")
+    tiempoAcumuladoMin = 0
+    tDesplazamientosTotal = 0
+    tVisitasTotal = 0
+    filas_itinerario = []
     
-    # Verificación estricta usando conjuntos (ignorando el orden en que se listan)
-    setPropio = set(hullPropio)
-    setScipy = set(hullScipy)
+    # Fila Cero (Salida)
+    print(f"{0:<6} | {lugarInicio:<25} | {0:<15.1f} | {0:<12.1f} | {0:<15.2f}")
     
-    if setPropio == setScipy:
-        print("\n✅ VERIFICACIÓN EXITOSA: Tu algoritmo 'Divide y Vencerás' ha encontrado")
-        print("exactamente el mismo polígono convexo que la librería SciPy.")
-    else:
-        print("\n❌ Diferencia detectada entre los algoritmos.")
+    for i in range(1, len(rutaFinal)):
+        lugarAnterior = rutaFinal[i-1]
+        lugarActual = rutaFinal[i]
+        
+        # Tiempos
+        desplazamiento_m = matriz[lugarAnterior][lugarActual] / 60
+        tDesplazamientosTotal += desplazamiento_m
+        
+        visita_m = duraciones.get(lugarActual, 0) if lugarActual != lugarInicio else 0
+        tVisitasTotal += visita_m
+        
+        tiempoAcumuladoMin += (desplazamiento_m + visita_m)
+        acumulado_h = tiempoAcumuladoMin / 60
+        
+        orden_str = str(i) if lugarActual != lugarInicio else "Regreso"
+        
+        print(f"{orden_str:<6} | {lugarActual:<25} | {desplazamiento_m:<15.1f} | {visita_m:<12.1f} | {acumulado_h:<15.2f}")
+        
+        filas_itinerario.append({
+            "Orden": orden_str, "Lugar": lugarActual,
+            "Desplazamiento desde el anterior (min)": round(desplazamiento_m, 1),
+            "Visita (min)": visita_m, "Tiempo acumulado (h)": round(acumulado_h, 2)
+        })
+        
+    print("-" * 80)
+    print(f"Total Desplazamientos: {tDesplazamientosTotal:.1f} min")
+    print(f"Total Visitas:         {tVisitasTotal:.1f} min")
+    print(f"Duración de Jornada:   {tiempoAcumuladoMin/60:.2f} h")
+    
+    pd.DataFrame(filas_itinerario).to_csv("procesado/tabla_itinerario.csv", index=False)
+    print("\n✅ Tablas CSV exportadas en la carpeta 'procesado/'")
 
 
-ejecutarRequerimiento3()
-
+generarTablasExactas()
 
 if __name__ == "__main__":
     generarMatrizTiempos()
